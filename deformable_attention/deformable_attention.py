@@ -15,6 +15,20 @@ def default(val, d):
 def divisible_by(numer, denom):
     return (numer % denom) == 0
 
+# tensor helpers
+
+def create_grid_like(t, dim = 0):
+    h, w, device = *t.shape[-2:], t.device
+
+    grid = torch.stack(torch.meshgrid(
+        torch.arange(h, device = device),
+        torch.arange(w, device = device),
+    indexing = 'ij'), dim = dim)
+
+    grid.requires_grad = False
+    grid = grid.type_as(t)
+    return grid
+
 class Scale(nn.Module):
     def __init__(self, scale):
         super().__init__()
@@ -22,6 +36,47 @@ class Scale(nn.Module):
 
     def forward(self, x):
         return x * self.scale
+
+# continuous positional bias from SwinV2
+
+class CPB(nn.Module):
+    """ https://arxiv.org/abs/2111.09883v1 """
+
+    def __init__(self, dim, *, heads, offset_groups, depth):
+        super().__init__()
+        self.heads = heads
+        self.offset_groups = offset_groups
+
+        self.mlp = nn.ModuleList([])
+
+        self.mlp.append(nn.Sequential(
+            nn.Linear(2, dim),
+            nn.ReLU()
+        ))
+
+        for _ in range(depth - 1):
+            self.mlp.append(nn.Sequential(
+                nn.Linear(dim, dim),
+                nn.ReLU()
+            ))
+
+        self.mlp.append(nn.Linear(dim, heads // offset_groups))
+
+    def forward(self, grid_q, grid_kv):
+        device, dtype = grid_q.device, grid_kv.dtype
+
+        grid_q = rearrange(grid_q, 'c h w -> 1 (h w) c')
+        grid_kv = rearrange(grid_kv, 'b c h w -> b (h w) c')
+
+        pos = rearrange(grid_q, 'b i c -> b i 1 c') - rearrange(grid_kv, 'b j c -> b 1 j c')
+        bias = torch.sign(pos) * torch.log(pos.abs() + 1)  # log of distance is sign(rel_pos) * log(abs(rel_pos) + 1)
+
+        for layer in self.mlp:
+            bias = layer(bias)
+
+        bias = rearrange(bias, '(b g) i j o -> b (g o) i j', g = self.offset_groups)
+
+        return bias
 
 # main class
 
@@ -36,11 +91,11 @@ class DeformableAttention(nn.Module):
         downsample_factor = 4,
         offset_scale = 4,
         offset_groups = None,
-        offset_kernel_size = 5,
+        offset_kernel_size = 5
     ):
         super().__init__()
         offset_groups = default(offset_groups, heads)
-        assert divisible_by(offset_groups, heads) or divisible_by(heads, offset_groups)
+        assert divisible_by(heads, offset_groups)
 
         inner_dim = dim_head * heads
         self.scale = dim_head ** -0.5
@@ -59,12 +114,14 @@ class DeformableAttention(nn.Module):
             Scale(offset_scale)
         )
 
+        self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2)
+
         self.dropout = nn.Dropout(dropout)
         self.to_q = nn.Conv2d(dim, inner_dim, 1, bias = False)
         self.to_kv = nn.Conv2d(dim, inner_dim * 2, 1, bias = False)
         self.to_out = nn.Conv2d(inner_dim, dim, 1)
 
-    def forward(self, x):
+    def forward(self, x, return_vgrid = False):
         """
         b - batch
         h - heads
@@ -82,32 +139,23 @@ class DeformableAttention(nn.Module):
 
         # calculate offsets - offset MLP shared across all groups
 
-        offsets_input = rearrange(q, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
-        offsets = self.to_offsets(offsets_input)
+        grouped_feats = rearrange(q, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
+        offsets = self.to_offsets(grouped_feats)
 
         # calculate grid + offsets
 
-        offsets_h, offsets_w = offsets.shape[-2:]
-
-        grid = torch.stack(torch.meshgrid(
-            torch.arange(offsets_h, device = device),
-            torch.arange(offsets_w, device = device),
-        indexing = 'ij'))
-
-        grid.requires_grad = False
-        grid = grid.type_as(x)
-
+        grid =create_grid_like(offsets)
         vgrid = grid + offsets
 
         vgrid_h, vgrid_w = vgrid.unbind(dim = 1)
 
-        vgrid_h = 2.0 * vgrid_h / max(offsets_h - 1, 1) - 1.0
-        vgrid_w = 2.0 * vgrid_w / max(offsets_w - 1, 1) - 1.0
+        vgrid_h = 2.0 * vgrid_h / max(offsets.shape[-2] - 1, 1) - 1.0
+        vgrid_w = 2.0 * vgrid_w / max(offsets.shape[-1] - 1, 1) - 1.0
 
         vgrid_scaled = torch.stack((vgrid_h, vgrid_w), dim = -1)
 
         kv_feats = F.grid_sample(
-            offsets_input,
+            grouped_feats,
             vgrid_scaled,
         mode = 'bilinear', padding_mode = 'zeros', align_corners = False)
 
@@ -128,6 +176,15 @@ class DeformableAttention(nn.Module):
         # query / key similarity
 
         sim = einsum('b h i d, b h j d -> b h i j', q, k)
+
+        # relative positional bias
+
+        grid = create_grid_like(x)
+        rel_pos_bias = self.rel_pos_bias(grid, vgrid)
+        sim = sim + rel_pos_bias
+
+        # numerical stability
+
         sim = sim - sim.amax(dim = -1, keepdim = True).detach()
 
         # attention
@@ -139,4 +196,9 @@ class DeformableAttention(nn.Module):
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h (x y) d -> b (h d) x y', x = h, y = w)
-        return self.to_out(out)
+        out = self.to_out(out)
+
+        if return_vgrid:
+            return out, vgrid
+
+        return out

@@ -1,6 +1,6 @@
 <img src="./deformable-attention.png" width="500px"></img>
 
-## Deformable Attention (wip)
+## Deformable Attention
 
 Implementation of Deformable Attention in Pytorch from <a href="https://arxiv.org/abs/2201.00520">this paper</a>, which appears to be better than what was proposed in DETR. This repository may also explore 1d and 3d cases, as well as fix the relative positional bias to extrapolate better (SwinV2 style).
 
@@ -30,6 +30,10 @@ attn = DeformableAttention(
 x = torch.randn(1, 512, 64, 64)
 attn(x) # (1, 512, 64, 64)
 ```
+
+## Todo
+
+- [ ] complete cross attention variant
 
 ## Citation
 

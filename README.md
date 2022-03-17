@@ -2,7 +2,7 @@
 
 ## Deformable Attention
 
-Implementation of Deformable Attention in Pytorch from <a href="https://arxiv.org/abs/2201.00520">this paper</a>, which appears to be better than what was proposed in DETR. This repository may also explore 1d and 3d cases, as well as fix the relative positional bias to extrapolate better (SwinV2 style).
+Implementation of Deformable Attention from <a href="https://arxiv.org/abs/2201.00520">this paper</a> in Pytorch, which appears to be an improvement to what was proposed in DETR. The relative positional embedding has also been modified for better extrapolation, using the Continuous Positional Embedding proposed in SwinV2.
 
 ## Install
 
@@ -34,6 +34,7 @@ attn(x) # (1, 512, 64, 64)
 ## Todo
 
 - [ ] complete cross attention variant
+- [ ] extend to 1d and 3d cases
 
 ## Citation
 

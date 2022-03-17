@@ -29,6 +29,16 @@ def create_grid_like(t, dim = 0):
     grid = grid.type_as(t)
     return grid
 
+def normalize_grid(grid, dim = 1, out_dim = -1):
+    # normalizes a grid to range from -1 to 1
+    h, w = grid.shape[-2:]
+    grid_h, grid_w = grid.unbind(dim = dim)
+
+    grid_h = 2.0 * grid_h / max(h - 1, 1) - 1.0
+    grid_w = 2.0 * grid_w / max(w - 1, 1) - 1.0
+
+    return torch.stack((grid_h, grid_w), dim = out_dim)
+
 class Scale(nn.Module):
     def __init__(self, scale):
         super().__init__()
@@ -65,8 +75,8 @@ class CPB(nn.Module):
     def forward(self, grid_q, grid_kv):
         device, dtype = grid_q.device, grid_kv.dtype
 
-        grid_q = rearrange(grid_q, 'c h w -> 1 (h w) c')
-        grid_kv = rearrange(grid_kv, 'b c h w -> b (h w) c')
+        grid_q = rearrange(grid_q, 'h w c -> 1 (h w) c')
+        grid_kv = rearrange(grid_kv, 'b h w c -> b (h w) c')
 
         pos = rearrange(grid_q, 'b i c -> b i 1 c') - rearrange(grid_kv, 'b j c -> b 1 j c')
         bias = torch.sign(pos) * torch.log(pos.abs() + 1)  # log of distance is sign(rel_pos) * log(abs(rel_pos) + 1)
@@ -147,12 +157,7 @@ class DeformableAttention(nn.Module):
         grid =create_grid_like(offsets)
         vgrid = grid + offsets
 
-        vgrid_h, vgrid_w = vgrid.unbind(dim = 1)
-
-        vgrid_h = 2.0 * vgrid_h / max(offsets.shape[-2] - 1, 1) - 1.0
-        vgrid_w = 2.0 * vgrid_w / max(offsets.shape[-1] - 1, 1) - 1.0
-
-        vgrid_scaled = torch.stack((vgrid_h, vgrid_w), dim = -1)
+        vgrid_scaled = normalize_grid(vgrid)
 
         kv_feats = F.grid_sample(
             grouped_feats,
@@ -180,7 +185,8 @@ class DeformableAttention(nn.Module):
         # relative positional bias
 
         grid = create_grid_like(x)
-        rel_pos_bias = self.rel_pos_bias(grid, vgrid)
+        grid_scaled = normalize_grid(grid, dim = 0)
+        rel_pos_bias = self.rel_pos_bias(grid_scaled, vgrid_scaled)
         sim = sim + rel_pos_bias
 
         # numerical stability

@@ -24,7 +24,7 @@ attn = DeformableAttention(
     downsample_factor = 4,       # downsample factor (r in paper)
     offset_scale = 4,            # scale of offset, maximum offset
     offset_groups = None,        # number of offset groups, should be multiple of heads
-    offset_kernel_size = 5,      # offset kernel size, 5 was in example in paper
+    offset_kernel_size = 6,      # offset kernel size
 )
 
 x = torch.randn(1, 512, 64, 64)

@@ -139,6 +139,7 @@ class DeformableAttention3D(nn.Module):
         """
         b - batch
         h - heads
+        f - frames
         x - height
         y - width
         d - dimension

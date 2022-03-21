@@ -132,8 +132,7 @@ class DeformableAttention1D(nn.Module):
         """
         b - batch
         h - heads
-        x - height
-        y - width
+        n - sequence dimension
         d - dimension
         g - offset groups
         """

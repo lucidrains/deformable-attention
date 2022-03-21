@@ -31,11 +31,6 @@ x = torch.randn(1, 512, 64, 64)
 attn(x) # (1, 512, 64, 64)
 ```
 
-## Todo
-
-- [ ] complete cross attention variant
-- [ ] extend to 1d and 3d cases
-
 ## Citation
 
 ```bibtex

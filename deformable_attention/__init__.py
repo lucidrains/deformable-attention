@@ -1,1 +1,4 @@
-from deformable_attention.deformable_attention import DeformableAttention
+from deformable_attention.deformable_attention_2d import DeformableAttention2D
+from deformable_attention.deformable_attention_3d import DeformableAttention3D
+
+DeformableAttention = DeformableAttention2D

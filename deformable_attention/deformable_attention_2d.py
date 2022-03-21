@@ -90,7 +90,7 @@ class CPB(nn.Module):
 
 # main class
 
-class DeformableAttention(nn.Module):
+class DeformableAttention2D(nn.Module):
     def __init__(
         self,
         *,

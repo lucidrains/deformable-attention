@@ -45,10 +45,11 @@ class Scale(nn.Module):
 class CPB(nn.Module):
     """ https://arxiv.org/abs/2111.09883v1 """
 
-    def __init__(self, dim, *, heads, offset_groups, depth):
+    def __init__(self, dim, *, heads, offset_groups, depth, log_distance = True):
         super().__init__()
         self.heads = heads
         self.offset_groups = offset_groups
+        self.log_distance = log_distance
 
         self.mlp = nn.ModuleList([])
 
@@ -72,7 +73,11 @@ class CPB(nn.Module):
         grid_kv = rearrange(grid_kv, 'b n -> b n')
 
         pos = rearrange(grid_q, 'b i -> b i 1 1') - rearrange(grid_kv, 'b j -> b 1 j 1')
-        bias = torch.sign(pos) * torch.log(pos.abs() + 1)  # log of distance is sign(rel_pos) * log(abs(rel_pos) + 1)
+
+        if self.log_distance:
+            pos = torch.sign(pos) * torch.log(pos.abs() + 1)  # log of distance is sign(rel_pos) * log(abs(rel_pos) + 1)
+
+        bias = pos
 
         for layer in self.mlp:
             bias = layer(bias)
@@ -94,7 +99,8 @@ class DeformableAttention1D(nn.Module):
         downsample_factor = 4,
         offset_scale = 4,
         offset_groups = None,
-        offset_kernel_size = 6
+        offset_kernel_size = 6,
+        cpb_log_distance = True
     ):
         super().__init__()
         assert divisible_by(offset_kernel_size - downsample_factor, 2)
@@ -121,7 +127,7 @@ class DeformableAttention1D(nn.Module):
             Scale(offset_scale)
         )
 
-        self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2)
+        self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2, log_distance = cpb_log_distance)
 
         self.dropout = nn.Dropout(dropout)
         self.to_q = nn.Linear(dim, inner_dim, bias = False)

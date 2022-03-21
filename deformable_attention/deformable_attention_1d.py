@@ -97,12 +97,13 @@ class DeformableAttention1D(nn.Module):
         heads = 8,
         dropout = 0.,
         downsample_factor = 4,
-        offset_scale = 4,
+        offset_scale = None,
         offset_groups = None,
         offset_kernel_size = 6,
         cpb_log_distance = True
     ):
         super().__init__()
+        offset_scale = default(offset_scale, downsample_factor)
         assert divisible_by(offset_kernel_size - downsample_factor, 2)
 
         offset_groups = default(offset_groups, heads)

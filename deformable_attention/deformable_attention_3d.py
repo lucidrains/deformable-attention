@@ -15,6 +15,9 @@ def default(val, d):
 def divisible_by(numer, denom):
     return (numer % denom) == 0
 
+def cast_tuple(x, length = 1):
+    return x if isinstance(x, tuple) else ((x,) * depth)
+
 # tensor helpers
 
 def create_grid_like(t, dim = 0):
@@ -44,10 +47,10 @@ def normalize_grid(grid, dim = 1, out_dim = -1):
 class Scale(nn.Module):
     def __init__(self, scale):
         super().__init__()
-        self.scale = scale
+        self.register_buffer('scale', torch.tensor(scale, dtype = torch.float32))
 
     def forward(self, x):
-        return x * self.scale
+        return x * rearrange(self.scale, 'c -> 1 c 1 1 1')
 
 # continuous positional bias from SwinV2
 
@@ -101,12 +104,16 @@ class DeformableAttention3D(nn.Module):
         heads = 8,
         dropout = 0.,
         downsample_factor = 4,
-        offset_scale = 4,
+        offset_scale = None,
         offset_groups = None,
         offset_kernel_size = 6
     ):
         super().__init__()
-        assert divisible_by(offset_kernel_size - downsample_factor, 2)
+        downsample_factor = cast_tuple(downsample_factor, length = 3)
+        offset_scale = default(offset_scale, downsample_factor)
+
+        offset_conv_padding = tuple(map(lambda x: (x[0] - x[1]) / 2, zip(offset_kernel_size, downsample_factor)))
+        assert all([padding.is_integer() for padding in offset_conv_padding])
 
         offset_groups = default(offset_groups, heads)
         assert divisible_by(heads, offset_groups)
@@ -121,7 +128,7 @@ class DeformableAttention3D(nn.Module):
         self.downsample_factor = downsample_factor
 
         self.to_offsets = nn.Sequential(
-            nn.Conv3d(offset_dims, offset_dims, offset_kernel_size, groups = offset_dims, stride = downsample_factor, padding = (offset_kernel_size - downsample_factor) // 2),
+            nn.Conv3d(offset_dims, offset_dims, offset_kernel_size, groups = offset_dims, stride = downsample_factor, padding = tuple(map(int, offset_conv_padding))),
             nn.GELU(),
             nn.Conv3d(offset_dims, 3, 1, bias = False),
             nn.Tanh(),

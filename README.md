@@ -31,10 +31,6 @@ x = torch.randn(1, 512, 64, 64)
 attn(x) # (1, 512, 64, 64)
 ```
 
-## Todo
-
-- [ ] for video, allow for asymmetric kernel dimensions (frames may be small number)
-
 ## Citation
 
 ```bibtex

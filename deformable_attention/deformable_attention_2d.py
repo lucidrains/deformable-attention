@@ -132,7 +132,8 @@ class DeformableAttention2D(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.to_q = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
-        self.to_kv = nn.Conv2d(dim, inner_dim * 2, 1, groups = offset_groups, bias = False)
+        self.to_k = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
+        self.to_v = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
         self.to_out = nn.Conv2d(inner_dim, dim, 1)
 
     def forward(self, x, return_vgrid = False):
@@ -174,7 +175,7 @@ class DeformableAttention2D(nn.Module):
 
         # derive key / values
 
-        k, v = self.to_kv(kv_feats).chunk(2, dim = 1)
+        k, v = self.to_k(kv_feats), self.to_v(kv_feats)
 
         # scale queries
 

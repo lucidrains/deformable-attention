@@ -51,6 +51,23 @@ x = torch.randn(1, 512, 10, 32, 32) # (batch, dimension, frames, height, width)
 attn(x) # (1, 512, 10, 32, 32)
 ```
 
+1d deformable attention for good measure
+
+```python
+import torch
+from deformable_attention import DeformableAttention1D
+
+attn = DeformableAttention1D(
+    dim = 128,
+    downsample_factor = 4,
+    offset_scale = 2,
+    offset_kernel_size = 6
+)
+
+x = torch.randn(1, 128, 512)
+attn(x)
+```
+
 ## Citation
 
 ```bibtex

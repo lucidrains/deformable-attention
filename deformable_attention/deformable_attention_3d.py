@@ -113,7 +113,7 @@ class DeformableAttention3D(nn.Module):
         offset_scale = default(offset_scale, downsample_factor)
 
         offset_conv_padding = tuple(map(lambda x: (x[0] - x[1]) / 2, zip(offset_kernel_size, downsample_factor)))
-        assert all([padding.is_integer() for padding in offset_conv_padding])
+        assert all([(padding > 0 and padding.is_integer()) for padding in offset_conv_padding])
 
         offset_groups = default(offset_groups, heads)
         assert divisible_by(heads, offset_groups)

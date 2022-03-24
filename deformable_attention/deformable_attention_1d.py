@@ -104,6 +104,7 @@ class DeformableAttention1D(nn.Module):
     ):
         super().__init__()
         offset_scale = default(offset_scale, downsample_factor)
+        assert offset_kernel_size >= downsample_factor, 'offset kernel size must be greater than or equal to the downsample factor'
         assert divisible_by(offset_kernel_size - downsample_factor, 2)
 
         offset_groups = default(offset_groups, heads)

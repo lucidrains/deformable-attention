@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'deformable-attention',
   packages = find_packages(exclude=[]),
-  version = '0.0.11',
+  version = '0.0.12',
   license='MIT',
   description = 'Deformable Attention - from the paper "Vision Transformer with Deformable Attention"',
   author = 'Phil Wang',

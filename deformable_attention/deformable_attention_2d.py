@@ -101,7 +101,9 @@ class DeformableAttention2D(nn.Module):
         downsample_factor = 4,
         offset_scale = None,
         offset_groups = None,
-        offset_kernel_size = 6
+        offset_kernel_size = 6,
+        group_queries = True,
+        group_key_values = True
     ):
         super().__init__()
         offset_scale = default(offset_scale, downsample_factor)
@@ -131,9 +133,9 @@ class DeformableAttention2D(nn.Module):
         self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2)
 
         self.dropout = nn.Dropout(dropout)
-        self.to_q = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
-        self.to_k = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
-        self.to_v = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
+        self.to_q = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups if group_queries else 1, bias = False)
+        self.to_k = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups if group_key_values else 1, bias = False)
+        self.to_v = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups if group_key_values else 1, bias = False)
         self.to_out = nn.Conv2d(inner_dim, dim, 1)
 
     def forward(self, x, return_vgrid = False):

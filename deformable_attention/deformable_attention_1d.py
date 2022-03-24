@@ -119,7 +119,6 @@ class DeformableAttention1D(nn.Module):
         self.downsample_factor = downsample_factor
 
         self.to_offsets = nn.Sequential(
-            Rearrange('b n d -> b d n'),
             nn.Conv1d(offset_dims, offset_dims, offset_kernel_size, groups = offset_dims, stride = downsample_factor, padding = (offset_kernel_size - downsample_factor) // 2),
             nn.GELU(),
             nn.Conv1d(offset_dims, 1, 1, bias = False),
@@ -131,9 +130,9 @@ class DeformableAttention1D(nn.Module):
         self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2, log_distance = cpb_log_distance)
 
         self.dropout = nn.Dropout(dropout)
-        self.to_q = nn.Linear(dim, inner_dim, bias = False)
-        self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
-        self.to_out = nn.Linear(inner_dim, dim)
+        self.to_q = nn.Conv1d(dim, inner_dim, 1, groups = offset_groups, bias = False)
+        self.to_kv = nn.Conv1d(dim, inner_dim * 2, 1, groups = offset_groups, bias = False)
+        self.to_out = nn.Conv1d(inner_dim, dim, 1)
 
     def forward(self, x, return_vgrid = False):
         """
@@ -144,7 +143,7 @@ class DeformableAttention1D(nn.Module):
         g - offset groups
         """
 
-        heads, b, n, downsample_factor, device = self.heads, x.shape[0], x.shape[-2], self.downsample_factor, x.device
+        heads, b, n, downsample_factor, device = self.heads, x.shape[0], x.shape[-1], self.downsample_factor, x.device
 
         # queries
 
@@ -152,8 +151,10 @@ class DeformableAttention1D(nn.Module):
 
         # calculate offsets - offset MLP shared across all groups
 
-        grouped_feats = rearrange(q, 'b n (g d) -> (b g) d n', g = self.offset_groups)
-        offsets = self.to_offsets(grouped_feats)
+        group = lambda t: rearrange(t, 'b (g d) n -> (b g) d n', g = self.offset_groups)
+
+        grouped_queries = group(q)
+        offsets = self.to_offsets(grouped_queries)
 
         # calculate grid + offsets
 
@@ -162,15 +163,15 @@ class DeformableAttention1D(nn.Module):
         vgrid_scaled = normalize_grid(vgrid)
 
         kv_feats = grid_sample_1d(
-            grouped_feats,
+            group(x),
             vgrid_scaled,
         mode = 'bilinear', padding_mode = 'zeros', align_corners = False)
 
-        kv_feats = rearrange(kv_feats, '(b g) d n -> b n (g d)', b = b)
+        kv_feats = rearrange(kv_feats, '(b g) d n -> b (g d) n', b = b)
 
         # derive key / values
 
-        k, v = self.to_kv(kv_feats).chunk(2, dim = -1)
+        k, v = self.to_kv(kv_feats).chunk(2, dim = 1)
 
         # scale queries
 
@@ -178,7 +179,7 @@ class DeformableAttention1D(nn.Module):
 
         # split out heads
 
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = heads), (q, k, v))
+        q, k, v = map(lambda t: rearrange(t, 'b (h d) n -> b h n d', h = heads), (q, k, v))
 
         # query / key similarity
 
@@ -203,7 +204,7 @@ class DeformableAttention1D(nn.Module):
         # aggregate and combine heads
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = rearrange(out, 'b h n d -> b (h d) n')
         out = self.to_out(out)
 
         if return_vgrid:

@@ -152,11 +152,9 @@ class DeformableAttention2D(nn.Module):
 
         # calculate offsets - offset MLP shared across all groups
 
-        split_out_groups = lambda t: rearrange(t, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
+        group = lambda t: rearrange(t, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
 
-        grouped_input_fmap = split_out_groups(x)
-        grouped_queries = split_out_groups(q)
-
+        grouped_queries = group(q)
         offsets = self.to_offsets(grouped_queries)
 
         # calculate grid + offsets
@@ -167,7 +165,7 @@ class DeformableAttention2D(nn.Module):
         vgrid_scaled = normalize_grid(vgrid)
 
         kv_feats = F.grid_sample(
-            grouped_input_fmap,
+            group(x),
             vgrid_scaled,
         mode = 'bilinear', padding_mode = 'zeros', align_corners = False)
 

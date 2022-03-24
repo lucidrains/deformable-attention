@@ -138,8 +138,8 @@ class DeformableAttention3D(nn.Module):
         self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2)
 
         self.dropout = nn.Dropout(dropout)
-        self.to_q = nn.Conv3d(dim, inner_dim, 1, bias = False)
-        self.to_kv = nn.Conv3d(dim, inner_dim * 2, 1, bias = False)
+        self.to_q = nn.Conv3d(dim, inner_dim, 1, groups = offset_groups, bias = False)
+        self.to_kv = nn.Conv3d(dim, inner_dim * 2, 1, groups = offset_groups, bias = False)
         self.to_out = nn.Conv3d(inner_dim, dim, 1)
 
     def forward(self, x, return_vgrid = False):
@@ -161,8 +161,10 @@ class DeformableAttention3D(nn.Module):
 
         # calculate offsets - offset MLP shared across all groups
 
-        grouped_feats = rearrange(q, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
-        offsets = self.to_offsets(grouped_feats)
+        group = lambda t: rearrange(t, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
+
+        grouped_queries = group(q)
+        offsets = self.to_offsets(grouped_queries)
 
         # calculate grid + offsets
 
@@ -172,7 +174,7 @@ class DeformableAttention3D(nn.Module):
         vgrid_scaled = normalize_grid(vgrid)
 
         kv_feats = F.grid_sample(
-            grouped_feats,
+            group(x),
             vgrid_scaled,
         mode = 'bilinear', padding_mode = 'zeros', align_corners = False)
 

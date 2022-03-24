@@ -130,8 +130,8 @@ class DeformableAttention2D(nn.Module):
         self.rel_pos_bias = CPB(dim // 4, offset_groups = offset_groups, heads = heads, depth = 2)
 
         self.dropout = nn.Dropout(dropout)
-        self.to_q = nn.Conv2d(dim, inner_dim, 1, bias = False)
-        self.to_kv = nn.Conv2d(dim, inner_dim * 2, 1, bias = False)
+        self.to_q = nn.Conv2d(dim, inner_dim, 1, groups = offset_groups, bias = False)
+        self.to_kv = nn.Conv2d(dim, inner_dim * 2, 1, groups = offset_groups, bias = False)
         self.to_out = nn.Conv2d(inner_dim, dim, 1)
 
     def forward(self, x, return_vgrid = False):
@@ -152,8 +152,12 @@ class DeformableAttention2D(nn.Module):
 
         # calculate offsets - offset MLP shared across all groups
 
-        grouped_feats = rearrange(q, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
-        offsets = self.to_offsets(grouped_feats)
+        split_out_groups = lambda t: rearrange(t, 'b (g d) ... -> (b g) d ...', g = self.offset_groups)
+
+        grouped_input_fmap = split_out_groups(x)
+        grouped_queries = split_out_groups(q)
+
+        offsets = self.to_offsets(grouped_queries)
 
         # calculate grid + offsets
 
@@ -163,7 +167,7 @@ class DeformableAttention2D(nn.Module):
         vgrid_scaled = normalize_grid(vgrid)
 
         kv_feats = F.grid_sample(
-            grouped_feats,
+            grouped_input_fmap,
             vgrid_scaled,
         mode = 'bilinear', padding_mode = 'zeros', align_corners = False)
 

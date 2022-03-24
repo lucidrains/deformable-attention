@@ -65,7 +65,7 @@ attn = DeformableAttention1D(
 )
 
 x = torch.randn(1, 128, 512)
-attn(x)
+attn(x) # (1, 128, 512)
 ```
 
 ## Citation

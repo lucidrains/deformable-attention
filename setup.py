@@ -6,6 +6,7 @@ setup(
   version = '0.0.17',
   license='MIT',
   description = 'Deformable Attention - from the paper "Vision Transformer with Deformable Attention"',
+  long_description_content_type = 'text/markdown',
   author = 'Phil Wang',
   author_email = 'lucidrains@gmail.com',
   url = 'https://github.com/lucidrains/deformable-attention',

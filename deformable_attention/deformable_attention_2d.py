@@ -21,8 +21,8 @@ def create_grid_like(t, dim = 0):
     h, w, device = *t.shape[-2:], t.device
 
     grid = torch.stack(torch.meshgrid(
-        torch.arange(h, device = device),
         torch.arange(w, device = device),
+        torch.arange(h, device = device),
     indexing = 'xy'), dim = dim)
 
     grid.requires_grad = False

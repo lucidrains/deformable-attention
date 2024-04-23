@@ -22,7 +22,7 @@ def grid_sample_1d(feats, grid, *args, **kwargs):
     # does 1d grid sample by reshaping it to 2d
 
     grid = rearrange(grid, '... -> ... 1 1')
-    grid = F.pad(grid, (0, 1), value = 0.)
+    grid = F.pad(grid, (1, 0), value = 0.)
     feats = rearrange(feats, '... -> ... 1')
     out = F.grid_sample(feats, grid, **kwargs)
     return rearrange(out, '... 1 -> ...')

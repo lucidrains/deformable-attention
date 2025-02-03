@@ -16,7 +16,7 @@ def divisible_by(numer, denom):
     return (numer % denom) == 0
 
 def cast_tuple(x, length = 1):
-    return x if isinstance(x, tuple) else ((x,) * depth)
+    return x if isinstance(x, tuple) else ((x,) * length)
 
 # tensor helpers
 
